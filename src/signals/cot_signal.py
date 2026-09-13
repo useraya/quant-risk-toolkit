@@ -124,8 +124,18 @@ def build_signal(
     lookback_weeks: int = 156,
     index_threshold: float = 20.0,
     zscore_threshold: float = 1.5,
+    signal_direction: str = "standard",
 ) -> pd.DataFrame:
     """Combine the COT Index and rolling z-score into a single signal.
+
+    signal_direction:
+        "standard" — extreme net-long (high COT Index) is bullish. This is
+        the conventional interpretation, but empirically doesn't hold for
+        every market (see IC analysis in src/analysis/signal_evaluation.py).
+        "inverted" — extreme net-long is bearish instead. Worth testing
+        explicitly per-market rather than assuming the standard convention
+        applies everywhere — e.g. gold commercials are structurally
+        short-biased producers/hedgers, which can flip the relationship.
 
     Bullish (+1): COT Index above (100 - index_threshold) AND z-score above
     zscore_threshold — commercials are unusually net-long by both measures.
@@ -145,12 +155,16 @@ def build_signal(
     result["cot_index"] = cot_index(net_position, lookback_weeks)
     result["zscore"] = rolling_zscore(net_position, lookback_weeks)
 
-    bullish = (result["cot_index"] >= 100 - index_threshold) & (result["zscore"] >= zscore_threshold)
-    bearish = (result["cot_index"] <= index_threshold) & (result["zscore"] <= -zscore_threshold)
+    extreme_long = (result["cot_index"] >= 100 - index_threshold) & (result["zscore"] >= zscore_threshold)
+    extreme_short = (result["cot_index"] <= index_threshold) & (result["zscore"] <= -zscore_threshold)
 
     result["signal"] = 0
-    result.loc[bullish, "signal"] = 1
-    result.loc[bearish, "signal"] = -1
+    if signal_direction == "inverted":
+        result.loc[extreme_long, "signal"] = -1
+        result.loc[extreme_short, "signal"] = 1
+    else:
+        result.loc[extreme_long, "signal"] = 1
+        result.loc[extreme_short, "signal"] = -1
 
     return result
 

@@ -9,6 +9,8 @@ Run with:
 from src.data.loaders import fetch_price_history, compute_returns
 from src.signals.cot_signal import fetch_cot_history, build_signal
 from src.backtest.engine import run_backtest, compare_to_benchmark
+from src.analysis.signal_evaluation import ic_decay_analysis
+
 
 START_DATE = "2015-01-01"
 
@@ -21,7 +23,10 @@ def main():
 
     print("\nFetching gold COT positioning data...")
     cot_data = fetch_cot_history("gold", start_date=START_DATE)
-    signal_df = build_signal(cot_data, trader_type="commercial")
+    signal_df = build_signal(cot_data, trader_type="commercial", signal_direction="inverted")    
+    print("\nRunning Information Coefficient analysis (using continuous COT Index, not the discretized signal)...")
+    ic_results = ic_decay_analysis(prices, signal_df["cot_index"], horizons=[5, 10, 20, 40, 60])
+    print(ic_results.round(4))
     signal = signal_df["signal"]
     print(f"  Got {len(signal)} weekly COT reports")
     print(f"  Bullish weeks: {(signal == 1).sum()}, Bearish weeks: {(signal == -1).sum()}")
