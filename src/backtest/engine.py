@@ -81,7 +81,34 @@ def run_backtest(
     result["benchmark_equity"] = (1 + price_returns).cumprod()
 
     return result
+def apply_trend_filter(
+    signal: pd.Series,
+    prices: pd.DataFrame,
+    ma_window: int = 200,
+    price_col: str = "Close",
+) -> pd.Series:
+    """Only keep a bullish signal when price is above its long-term moving
+    average, and a bearish signal when price is below it. This tests a
+    specific, pre-specified hypothesis: that COT positioning has value as
+    a confirming filter alongside trend, even if it showed no standalone
+    predictive edge on its own (per the IC analysis).
 
+    This is one deliberate test, not a parameter search — the 200-day
+    window is a standard, widely-used trend definition, not something
+    tuned to make the result look good.
+    """
+    moving_avg = prices[price_col].rolling(ma_window).mean()
+    trend_up = prices[price_col] > moving_avg
+    trend_down = prices[price_col] < moving_avg
+
+    trend_up_aligned = trend_up.reindex(signal.index, method="ffill").fillna(False)
+    trend_down_aligned = trend_down.reindex(signal.index, method="ffill").fillna(False)
+
+    filtered = signal.copy()
+    filtered[(signal == 1) & (~trend_up_aligned)] = 0
+    filtered[(signal == -1) & (~trend_down_aligned)] = 0
+
+    return filtered
 
 def compare_to_benchmark(backtest_result: pd.DataFrame, periods_per_year: int = 252) -> dict:
     """Quick side-by-side comparison of strategy vs. buy-and-hold, using

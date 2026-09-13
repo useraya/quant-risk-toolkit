@@ -47,6 +47,13 @@ def plot_equity_curve(result: pd.DataFrame, log_scale: bool = True, save_path: s
 
     if log_scale:
         ax.set_yscale("log")
+        # Default log-scale scientific notation looks garbled over a small
+        # value range (e.g. 0.8x to 4x) — force plain "Nx" labels on both
+        # major and minor ticks instead
+        formatter = mticker.FuncFormatter(lambda x, _: f"{x:.1f}x")
+        ax.yaxis.set_major_formatter(formatter)
+        ax.yaxis.set_minor_formatter(formatter)
+        ax.yaxis.set_minor_locator(mticker.LogLocator(subs=(2, 3, 4, 5, 6, 7, 8, 9)))
 
     ax.set_title("Cumulative Growth of $1")
     ax.set_ylabel("Portfolio value (log scale)" if log_scale else "Portfolio value")
