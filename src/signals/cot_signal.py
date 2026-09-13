@@ -31,6 +31,7 @@ CFTC_LEGACY_ENDPOINT = "https://publicreporting.cftc.gov/resource/6dca-aqww.json
 MARKET_NAMES = {
     "gold": "GOLD - COMMODITY EXCHANGE INC.",
     "eurusd": "EURO FX - CHICAGO MERCANTILE EXCHANGE",
+    "usdjpy": "JAPANESE YEN - CHICAGO MERCANTILE EXCHANGE",
     "sp500": "S&P 500 Consolidated - CHICAGO MERCANTILE EXCHANGE",
 }
 
