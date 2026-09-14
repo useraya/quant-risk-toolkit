@@ -166,16 +166,59 @@ def plot_ic_decay(ic_df: pd.DataFrame, save_path: str = None):
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
     return fig
+def plot_metrics_table(strategy_stats: dict, benchmark_stats: dict = None, save_path: str = None):
+    """Render the full metrics dictionary as a table image, so the complete
+    numeric picture (including skewness, kurtosis, and every VaR variant)
+    is visible directly alongside the charts, not just in console output.
+    """
+    _apply_style()
 
+    metric_names = list(strategy_stats.keys())
+    if benchmark_stats is not None:
+        col_labels = ["Metric", "Strategy", "Buy & Hold"]
+        rows = [
+            [name, f"{strategy_stats[name]:.4f}", f"{benchmark_stats[name]:.4f}"]
+            for name in metric_names
+        ]
+    else:
+        col_labels = ["Metric", "Value"]
+        rows = [[name, f"{strategy_stats[name]:.4f}"] for name in metric_names]
+
+    fig, ax = plt.subplots(figsize=(9, len(rows) * 0.35 + 1))
+    ax.axis("off")
+
+    table = ax.table(cellText=rows, colLabels=col_labels, loc="center", cellLoc="left",
+                      colWidths=[0.5, 0.25, 0.25] if benchmark_stats is not None else [0.7, 0.3])
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1, 1.4)
+
+    for col_idx in range(len(col_labels)):
+        table[0, col_idx].set_facecolor(COLOR_STRATEGY)
+        table[0, col_idx].set_text_props(color="white", fontweight="bold")
+
+    ax.set_title("Performance Summary", fontweight="bold", pad=20)
+    fig.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+    return fig
 
 def build_full_tearsheet(result: pd.DataFrame, ic_df: pd.DataFrame, output_dir: str = "data"):
     """Generate and save all tearsheet visuals in one call."""
+    from src.performance.metrics import summary_tearsheet
+
     plot_equity_curve(result, save_path=f"{output_dir}/equity_curve.png")
     plot_drawdown(result, save_path=f"{output_dir}/drawdown.png")
     plot_return_distribution(result, save_path=f"{output_dir}/return_distribution.png")
     plot_rolling_sharpe(result["strategy_return"], save_path=f"{output_dir}/rolling_sharpe.png")
     if ic_df is not None:
         plot_ic_decay(ic_df, save_path=f"{output_dir}/ic_decay.png")
+
+    strategy_stats = summary_tearsheet(result["strategy_return"])
+    benchmark_stats = summary_tearsheet(result["price_return"])
+    plot_metrics_table(strategy_stats, benchmark_stats, save_path=f"{output_dir}/metrics_table.png")
+
     print(f"Saved tearsheet visuals to {output_dir}/")
 
 

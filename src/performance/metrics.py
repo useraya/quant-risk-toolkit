@@ -180,7 +180,37 @@ def expected_shortfall(returns: pd.Series, confidence: float = 0.95) -> float:
     if tail_losses.empty:
         return np.nan
     return float(-tail_losses.mean())
+def monte_carlo_var(
+    returns: pd.Series,
+    confidence: float = 0.95,
+    n_simulations: int = 10000,
+    distribution: str = "normal",
+    random_seed: int = 42,
+) -> float:
+    """Monte Carlo VaR: simulate a large number of hypothetical returns
+    drawn from a fitted distribution, then take the empirical quantile of
+    the simulated outcomes.
 
+    distribution="normal" fits a normal distribution to the return series
+    (mean, std), matching the assumption behind parametric_var.
+    distribution="t" fits a Student-t distribution instead, which allows
+    fatter tails. Given how much excess kurtosis shows up in practice
+    (see the kurtosis() function), the normal assumption tends to
+    understate tail risk — comparing both versions makes that gap visible
+    directly, rather than relying on a single VaR number.
+    """
+    rng = np.random.default_rng(random_seed)
+    clean_returns = returns.dropna()
+
+    if distribution == "t":
+        from scipy.stats import t as t_dist
+        params = t_dist.fit(clean_returns)
+        simulated = t_dist.rvs(*params, size=n_simulations, random_state=rng)
+    else:
+        mu, sigma = clean_returns.mean(), clean_returns.std()
+        simulated = rng.normal(mu, sigma, n_simulations)
+
+    return float(-np.percentile(simulated, (1 - confidence) * 100))
 
 def rolling_sharpe(returns: pd.Series, window: int = 63, periods_per_year: int = 252) -> pd.Series:
     """Sharpe ratio computed on a rolling window, to see whether
@@ -212,6 +242,8 @@ def summary_tearsheet(returns: pd.Series, risk_free_rate: float = 0.0, periods_p
         "Kurtosis (excess)": kurtosis(returns),
         "Historical VaR (95%)": historical_var(returns, 0.95),
         "Parametric VaR (95%)": parametric_var(returns, 0.95),
+        "Monte Carlo VaR (95%, normal)": monte_carlo_var(returns, 0.95, distribution="normal"),
+        "Monte Carlo VaR (95%, Student-t)": monte_carlo_var(returns, 0.95, distribution="t"),
         "Expected Shortfall (95%)": expected_shortfall(returns, 0.95),
     }
 
