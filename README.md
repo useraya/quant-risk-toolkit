@@ -1,153 +1,91 @@
-# Gold COT Positioning Strategy: A Quantitative Research Toolkit
+# COT Positioning Strategy: A Multi-Market Quantitative Research Toolkit
 
-A Python research toolkit for building, validating, and backtesting a
-systematic trading signal — using CFTC Commitment of Traders (COT)
-positioning data on gold as the test case, with a professional-grade
-performance and risk analytics library underneath.
+A Python research toolkit for building, validating, and backtesting a systematic trading signal derived from CFTC Commitment of Traders (COT) positioning data. The signal is tested across three markets (gold, EUR/USD, and USD/JPY) and supported by a professional-grade performance and risk analytics library.
 
-Built to practice the actual research workflow used in quant/market risk
-roles: form a hypothesis, validate it statistically before trading on it,
-backtest honestly, and report the result — including when the result is
-negative.
+The project follows the research workflow used in quantitative and market risk roles: form a hypothesis, validate it statistically before trading on it, test it across multiple markets rather than a single convenient case, backtest with realistic assumptions, and report the result regardless of outcome.
 
 ## Headline finding
 
-**Commercial COT positioning extremes show no statistically significant
-standalone predictive power for gold returns over 2015–2026.** Adding a
-200-day trend filter improves risk-adjusted performance modestly, but the
-strategy still substantially underperforms simple buy-and-hold. Full
-methodology and numbers below.
+Commercial COT positioning shows a statistically significant signal in EUR/USD (p = 0.012 at a 60-day horizon), a marginal signal in gold (p = 0.067), and no signal in USD/JPY (p = 0.97). In EUR/USD, a COT-based strategy outperformed buy-and-hold over the sample period. This was not driven by high absolute strategy returns, but by EUR/USD trending downward overall while the strategy remained defensively positioned.
 
-This is reported as-is rather than tuned until it looked better — the
-point of the project is the validation process, not a manufactured win.
+Results are reported market by market rather than selecting the most favorable outcome, in order to show where the signal holds up and where it does not.
 
-## What's in this repo
+## Repository structure
 
-| Module | What it does |
+| Module | Description |
 |---|---|
-| `src/data/loaders.py` | Pulls real price history (Yahoo Finance, via `yfinance`) |
-| `src/signals/cot_signal.py` | Pulls real CFTC positioning data and builds a COT Index (percentile rank) + z-score signal |
-| `src/analysis/signal_evaluation.py` | Information Coefficient (IC) analysis — validates a signal's real predictive power before any backtest |
-| `src/backtest/engine.py` | Turns a signal into a position series and computes strategy returns, with realistic publication lag, position lag, and transaction costs |
-| `src/performance/metrics.py` | 15 professional performance/risk metrics: Sharpe, Sortino, Calmar, Omega, tail ratio, VaR (historical + parametric), Expected Shortfall, drawdown depth/duration, rolling Sharpe |
-| `src/visuals/tearsheet.py` | Institutional-style tearsheet charts (equity curve, underwater drawdown plot, return distribution violin plot, rolling Sharpe, IC decay) |
-| `src/run_gold_strategy.py` | Runs the full pipeline end to end on real gold data |
+| `src/data/loaders.py` | Retrieves price history from Yahoo Finance via `yfinance` |
+| `src/signals/cot_signal.py` | Retrieves CFTC positioning data and constructs a COT Index (percentile rank) and z-score signal, configurable by market |
+| `src/analysis/signal_evaluation.py` | Information Coefficient (IC) analysis, used to validate signal predictive power prior to backtesting |
+| `src/backtest/engine.py` | Converts a signal into a position series and computes strategy returns, incorporating publication lag, position lag, transaction costs, and a trend-confirmation filter |
+| `src/performance/metrics.py` | Performance and risk metrics, including Sharpe, Sortino, Calmar, Omega, tail ratio, historical and parametric VaR, Expected Shortfall, drawdown depth and duration, and rolling Sharpe |
+| `src/visuals/tearsheet.py` | Institutional-style tearsheet visualizations: equity curve, underwater drawdown plot, return distribution, rolling Sharpe, and IC decay |
+| `src/run_multi_market_strategy.py` | Runs the full pipeline across all three markets, including a reliability guard on low-sample results |
 
 ## Methodology
 
-**Signal construction.** Rather than a raw z-score (which assumes normal
-positioning data), the primary signal is the **COT Index**: a percentile
-rank of current commercial net positioning within a rolling 3-year (156
-week) window — the standard approach in CTA/macro positioning research.
-A rolling z-score is used as a secondary confirmation measure; a signal
-only fires when both agree on an extreme reading.
+**Signal construction.** The primary signal is the COT Index, a percentile rank of current commercial net positioning within a rolling three-year (156-week) window. This is the standard approach used in CTA and macro positioning research, chosen over a raw z-score because positioning data is not normally distributed. A rolling z-score serves as a secondary confirmation measure, with a signal firing only when both measures agree on an extreme reading.
 
-**Validation before backtesting.** Before building any trading rule, the
-signal's raw predictive power was tested directly via **Information
-Coefficient (IC) analysis** — the correlation between the signal's value
-and subsequent price returns at multiple forward horizons (5 to 60 days).
-This decouples "does the signal carry information" from "did this
-particular set of trading rules make money," which a backtest alone
-can't separate.
+**Validation prior to backtesting.** Before constructing any trading rule, each market's signal was evaluated using Information Coefficient (IC) analysis: the correlation between the signal's value and subsequent returns across multiple forward horizons (5 to 60 days). This isolates whether a signal carries genuine predictive information from whether a particular set of trading rules happened to be profitable, a distinction a backtest alone cannot make.
 
-**Backtest realism.** The backtest engine accounts for the CFTC's
-publication lag (positioning data is reported roughly 3 days after the
-date it describes) and lags the position by one day, so the strategy
-never trades on information it couldn't have had yet. Transaction costs
-(2bps per position change) are applied.
+**Signal direction.** Signal direction is determined by a single, pre-specified rule: the sign of the average IC across all horizons, decided before any backtest is run and applied identically across all three markets. This avoids assuming a fixed textbook convention or selecting direction after observing backtest results.
+
+**Reliability guard.** After applying the trend filter, some markets retain very few active trading days. USD/JPY is one such case. A small number of active periods can produce unstable statistics, including extreme kurtosis and undefined tail ratios, that appear precise but are not meaningful. The pipeline checks the number of active trading days against a minimum threshold (30) and excludes unreliable results from the summary rather than reporting misleading figures.
 
 ## Results
 
-### Information Coefficient (commercial COT Index vs. forward returns)
+### Information Coefficient by market (60-day horizon)
 
-| Horizon (days) | Spearman IC | p-value | Hit rate |
+| Market | Spearman IC | p-value | Hit rate |
 |---|---|---|---|
-| 5 | -0.031 | 0.46 | 48.8% |
-| 10 | -0.049 | 0.40 | 47.9% |
-| 20 | -0.066 | 0.23 | 48.5% |
-| 40 | -0.063 | 0.13 | 47.7% |
-| 60 | -0.079 | 0.07 | 46.4% |
+| Gold | -0.077 | 0.067 | 46.4% |
+| EUR/USD | -0.105 | 0.012 | 41.9% |
+| USD/JPY | -0.002 | 0.969 | 51.7% |
 
-All horizons show weak, statistically insignificant IC (all p > 0.05),
-with a hit rate consistently *below* 50%. The relationship is negative
-and strengthens somewhat at longer horizons, which informed testing an
-inverted signal direction (see below) rather than assuming the textbook
-convention (extreme net-long = bullish) holds for every market — gold
-commercials are structurally short-biased producers/hedgers, unlike, say,
-agricultural commercials.
+### Backtest summary
 
-### Backtest: standalone signal vs. trend-filtered vs. buy-and-hold
-
-| Metric | Standalone signal | Trend-filtered | Buy & Hold |
+| Metric | Gold | EUR/USD | USD/JPY |
 |---|---|---|---|
-| Total return | -1.9% | +7.7% | +272% |
-| Annualized return | -0.2% | +0.6% | +11.9% |
-| Annualized volatility | 7.1% | 6.8% | 16.7% |
-| Sharpe ratio | 0.01 | 0.13 | 0.76 |
-| Sortino ratio | -0.01 | 0.04 | 0.69 |
-| Max drawdown | -24.7% | -19.2% | -25.1% |
+| Baseline Sharpe | 0.01 | 0.12 | 0.05 |
+| Trend-filtered Sharpe | 0.13 | 0.17 | Excluded (25 active days, below reliability threshold) |
+| Buy-and-hold Sharpe | 0.76 | -0.01 | 0.28 |
 
-The trend filter (only acting on the COT signal when price also confirms
-the same direction relative to its 200-day moving average) improved
-Sharpe from ~0 to 0.13 and reduced max drawdown — a real, if modest,
-improvement. It does not come close to closing the gap with buy-and-hold,
-which benefited from a strong structural gold bull market over this
-period that a mostly-flat positioning-based strategy largely missed.
+Gold and USD/JPY both underperform their respective buy-and-hold benchmarks. In gold, a mostly-flat, low-frequency signal missed a sustained structural bull market. In USD/JPY, there is effectively no signal, with an IC near zero and a hit rate close to chance. EUR/USD is the one market in which the signal both validates statistically and produces a strategy that outperforms its own benchmark.
 
 ## Visuals
 
-![Equity curve](data/equity_curve.png)
-*Strategy stays roughly flat while gold trends strongly upward — visual
-confirmation that the signal is inactive too often to capture the trend.*
+EUR/USD, the primary result:
 
-![Return distribution](data/return_distribution.png)
-*The strategy's tall, narrow spike near zero reflects its high kurtosis
-(27.6) — long stretches of no position punctuated by occasional large
-moves when a position is on.*
+![EUR/USD equity curve](data/eurusd/equity_curve.png)
+![EUR/USD return distribution](data/eurusd/return_distribution.png)
 
-![Rolling Sharpe](data/rolling_sharpe.png)
-*Flat at exactly 0 during inactive periods (zero variance), with volatile
-swings between +4 and -4 during the sparse active windows — a small-sample
-artifact rather than evidence of real regime-switching skill.*
+Gold and USD/JPY tearsheets are available in `data/gold/` and `data/usdjpy/` for comparison.
 
-![Drawdown](data/drawdown.png)
+## Limitations
 
-![IC decay](data/ic_decay.png)
+- The analysis covers three markets, one trader category (commercial), and one lookback window (156 weeks). This is a focused test rather than an exhaustive scan.
+- EUR/USD's outperformance relative to buy-and-hold is partly attributable to buy-and-hold itself being negative over this sample period, not solely to large absolute strategy returns.
+- The trend-filter window (200-day moving average) and reliability threshold (30 active days) are standard, sensible choices, but were not optimized per market to produce these results.
+- Weekly COT data is inherently lower frequency than daily price action, which limits the precision of any timing conclusion.
 
-## Limitations and honest caveats
+## Further work
 
-- Single instrument (gold), single trader category (commercial) as the
-  primary test — results may not generalize to other markets or to
-  large speculator positioning.
-- The trend-filter test was pre-specified as one hypothesis, not
-  discovered via a parameter search, but it is still only one test — it
-  hasn't been cross-validated out-of-sample beyond the period shown.
-- Weekly COT data means a fundamentally lower-frequency signal than daily
-  price action; the mismatch in observation frequency limits how precise
-  any timing conclusion can be.
-
-## What I'd test next
-
-- Non-commercial (large speculator) positioning as an alternative signal
-- Cross-asset test: does the same weak-negative-IC pattern hold for
-  other commodities, or is gold idiosyncratic?
-- A regime-conditional test: does positioning matter more in low-volatility
-  vs. high-volatility environments?
+- Extend the multi-market test to a broader basket, including additional FX pairs and commodities, to assess how common a EUR/USD-type result is
+- Test non-commercial (large speculator) positioning as an alternative signal
+- Conduct out-of-sample validation by fitting on an earlier period and testing on a later one, rather than using the full sample for both discovery and evaluation
 
 ## Setup
 
-\`\`\`bash
+```bash
 python -m venv venv
 source venv/bin/activate       # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-\`\`\`
+```
 
 ## Usage
 
-\`\`\`bash
-python -m src.run_gold_strategy
-\`\`\`
+```bash
+python -m src.run_multi_market_strategy
+```
 
-Runs the full pipeline: fetches real gold price and COT data, runs IC
-analysis, backtests both the standalone and trend-filtered strategy, and
-saves the tearsheet visuals to `data/`.
+This runs the full pipeline across all three markets: retrieving price and COT data, running IC analysis, backtesting both the standalone and trend-filtered strategy, applying the reliability guard, and saving tearsheet visuals to `data/<market>/`.
