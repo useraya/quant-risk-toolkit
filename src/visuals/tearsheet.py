@@ -203,12 +203,65 @@ def plot_metrics_table(strategy_stats: dict, benchmark_stats: dict = None, save_
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
     return fig
+def plot_monte_carlo_var(returns: pd.Series, confidence: float = 0.95, n_simulations: int = 10000, save_path: str = None):
+    """Visualize the Monte Carlo VaR simulation directly: overlay the
+    simulated return distributions under a normal assumption vs. a
+    Student-t (fat-tailed) assumption, with each method's VaR threshold
+    marked. Fitting a normal distribution to returns that actually have
+    heavy tails understates how large a loss is plausible — this chart
+    makes that gap visible rather than leaving it as two numbers in a
+    table.
+    """
+    from scipy.stats import t as t_dist
+    from src.performance.metrics import monte_carlo_var
 
+    _apply_style()
+    rng = np.random.default_rng(42)
+    clean_returns = returns.dropna()
+
+    mu, sigma = clean_returns.mean(), clean_returns.std()
+    simulated_normal = rng.normal(mu, sigma, n_simulations)
+
+    t_params = t_dist.fit(clean_returns)
+    simulated_t = t_dist.rvs(*t_params, size=n_simulations, random_state=rng)
+
+    var_normal = monte_carlo_var(returns, confidence, n_simulations, distribution="normal")
+    var_t = monte_carlo_var(returns, confidence, n_simulations, distribution="t")
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+
+    ax.hist(simulated_normal, bins=150, alpha=0.5, density=True,
+            color=COLOR_BENCHMARK, label="Simulated (normal assumption)")
+    ax.hist(simulated_t, bins=150, alpha=0.5, density=True,
+            color=COLOR_STRATEGY, label="Simulated (Student-t, fat-tailed)")
+
+    ax.axvline(-var_normal, color=COLOR_BENCHMARK, linestyle="--", linewidth=1.5,
+               label=f"Normal VaR ({confidence:.0%}): {var_normal:.2%}")
+    ax.axvline(-var_t, color=COLOR_STRATEGY, linestyle="--", linewidth=1.5,
+               label=f"Student-t VaR ({confidence:.0%}): {var_t:.2%}")
+
+    # Zoom to the region that matters — the extreme tails of 10,000
+    # simulations would otherwise stretch the axis and hide the shape
+    # where the two distributions actually diverge
+    xlim = max(abs(var_normal), abs(var_t)) * 4
+    ax.set_xlim(-xlim, xlim)
+
+    ax.set_title(f"Monte Carlo VaR Simulation ({n_simulations:,} draws)")
+    ax.set_xlabel("Simulated daily return")
+    ax.set_ylabel("Density")
+    ax.xaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
+    ax.legend(frameon=False, fontsize=9)
+    fig.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+    return fig
 def build_full_tearsheet(result: pd.DataFrame, ic_df: pd.DataFrame, output_dir: str = "data"):
     """Generate and save all tearsheet visuals in one call."""
     from src.performance.metrics import summary_tearsheet
 
     plot_equity_curve(result, save_path=f"{output_dir}/equity_curve.png")
+    plot_monte_carlo_var(result["strategy_return"], save_path=f"{output_dir}/monte_carlo_var.png")
     plot_drawdown(result, save_path=f"{output_dir}/drawdown.png")
     plot_return_distribution(result, save_path=f"{output_dir}/return_distribution.png")
     plot_rolling_sharpe(result["strategy_return"], save_path=f"{output_dir}/rolling_sharpe.png")
