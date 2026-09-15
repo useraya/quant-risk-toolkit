@@ -58,6 +58,7 @@ EUR/USD, the primary result:
 
 ![EUR/USD equity curve](data/eurusd/equity_curve.png)
 ![EUR/USD return distribution](data/eurusd/return_distribution.png)
+![EUR/USD Monte Carlo VaR](data/eurusd/monte_carlo_var.png)
 ![EUR/USD performance summary](data/eurusd/metrics_table.png)
 
 
