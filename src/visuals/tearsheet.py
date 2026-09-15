@@ -218,6 +218,17 @@ def plot_monte_carlo_var(returns: pd.Series, confidence: float = 0.95, n_simulat
     _apply_style()
     rng = np.random.default_rng(42)
     clean_returns = returns.dropna()
+    clean_returns = clean_returns[clean_returns != 0]
+
+    if len(clean_returns) < 30:
+        fig, ax = plt.subplots(figsize=(9, 5))
+        ax.text(0.5, 0.5, "Not enough active (non-zero) return observations\nto fit a reliable distribution",
+                ha="center", va="center", transform=ax.transAxes, fontsize=12, color="#666666")
+        ax.set_title("Monte Carlo VaR Simulation")
+        ax.axis("off")
+        if save_path:
+            fig.savefig(save_path, dpi=150, bbox_inches="tight")
+        return fig
 
     mu, sigma = clean_returns.mean(), clean_returns.std()
     simulated_normal = rng.normal(mu, sigma, n_simulations)
@@ -240,13 +251,10 @@ def plot_monte_carlo_var(returns: pd.Series, confidence: float = 0.95, n_simulat
     ax.axvline(-var_t, color=COLOR_STRATEGY, linestyle="--", linewidth=1.5,
                label=f"Student-t VaR ({confidence:.0%}): {var_t:.2%}")
 
-    # Zoom to the region that matters — the extreme tails of 10,000
-    # simulations would otherwise stretch the axis and hide the shape
-    # where the two distributions actually diverge
     xlim = max(abs(var_normal), abs(var_t)) * 4
     ax.set_xlim(-xlim, xlim)
 
-    ax.set_title(f"Monte Carlo VaR Simulation ({n_simulations:,} draws)")
+    ax.set_title(f"Monte Carlo VaR Simulation ({n_simulations:,} draws, active trading days only)")
     ax.set_xlabel("Simulated daily return")
     ax.set_ylabel("Density")
     ax.xaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))

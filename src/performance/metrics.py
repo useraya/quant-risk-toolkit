@@ -186,6 +186,7 @@ def monte_carlo_var(
     n_simulations: int = 10000,
     distribution: str = "normal",
     random_seed: int = 42,
+    exclude_zero_returns: bool = True,
 ) -> float:
     """Monte Carlo VaR: simulate a large number of hypothetical returns
     drawn from a fitted distribution, then take the empirical quantile of
@@ -198,9 +199,22 @@ def monte_carlo_var(
     (see the kurtosis() function), the normal assumption tends to
     understate tail risk — comparing both versions makes that gap visible
     directly, rather than relying on a single VaR number.
+
+    exclude_zero_returns: for a strategy that holds no position on many
+    days (returns exactly 0.0), including those days can make the fitted
+    distribution degenerate — a large point-mass at a single value can
+    collapse the Student-t maximum-likelihood fit to a near-zero scale.
+    Excluding them focuses the estimate on days the strategy was actually
+    exposed to the market, which is also the more meaningful measure of
+    risk for a signal-driven strategy.
     """
     rng = np.random.default_rng(random_seed)
     clean_returns = returns.dropna()
+    if exclude_zero_returns:
+        clean_returns = clean_returns[clean_returns != 0]
+
+    if len(clean_returns) < 30:
+        return np.nan
 
     if distribution == "t":
         from scipy.stats import t as t_dist
